@@ -195,6 +195,20 @@ void chicane() {
     avancer(0);
 }
 
+void testCapteurs(){
+    while (true) {
+        Serial.print("avant: ");
+        Serial.println(distance(TRIG_AVANT,ECHO_AVANT));
+        Serial.print("arriere: ");
+        Serial.println(distance(TRIG_ARRIERE,ECHO_ARRIERE));
+        Serial.print("gauche: ");
+        Serial.println(distance(TRIG_GAUCHE,ECHO_GAUCHE));
+        Serial.print("droite: ");
+        Serial.println(distance(TRIG_DROITE,ECHO_DROITE));
+        delay(1000);
+    }
+}
+
 void setup() {
     Serial.begin(9600);
     pinMode(DIR_GAUCHE,OUTPUT);
@@ -226,7 +240,7 @@ void loop() {
     //Serial.println(distance(TRIG_ARRIERE,ECHO_ARRIERE));
     //rouler(255);
     //delay(1000);
-    chicane();
-    delay(1000);
+    //chicane();
+    testCapteurs();
 }
 
