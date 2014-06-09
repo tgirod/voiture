@@ -21,9 +21,6 @@
 #define TRIG_DROITE 1
 #define ECHO_DROITE 0
 
-#define DROITE 1
-#define GAUCHE -1
-
 int min_direction = 400;
 int max_direction = 700;
 int dir; // position cible des roues
@@ -79,57 +76,59 @@ void calibrer() {
 /* changer la direction des roues pour se rapprocher autant que possible de @dir@ 
  * on ralentit à mesure qu'on se rapproche de la cible.
  */
-//void orienter(int dir) {
-    //int mes,diff;
-    //if (dir > max_direction) {
-        //dir = max_direction;
-    //}
-    //if (dir < min_direction) {
-        //dir = min_direction;
-    //}  
-    //mes = analogRead(DIR_MESURE);
-    //diff = dir - mes;
-    //Serial.println("orientation:");    
-    //Serial.println(String("\tmesure:\t") + mes);
-    //Serial.println(String("\tobjectif:\t") + dir);
-    //// bouger vers la droite
-    //if (diff > 1) {
-        //Serial.println("\tdirection:\tdroite");
-        //digitalWrite(DIR_DROITE,HIGH);
-        //digitalWrite(DIR_GAUCHE,LOW);
-    //}
-    //// bouger vers la gauche
-    //if (diff < -1) {
-        //Serial.println("\tdirection:\tgauche");
-        //digitalWrite(DIR_DROITE,LOW);
-        //digitalWrite(DIR_GAUCHE,HIGH);
-    //}
-    //// commencer le mouvement
-    //analogWrite(DIR_ALLUMER, DIR_PUISSANCE);
-    //while (abs(diff) > 2) {
-        //mes = analogRead(DIR_MESURE);
-        //diff = dir - mes;
-    //}
-    //// arreter le moteur
-    //analogWrite(DIR_ALLUMER,0);
-    //Serial.println("Stop !");
-    //Serial.println(analogRead(DIR_MESURE));
-//}
+void orienter(int dir) {
+    int mes,diff;
+    if (dir > max_direction) {
+        dir = max_direction;
+    }
+    if (dir < min_direction) {
+        dir = min_direction;
+    }
+
+    mes = analogRead(DIR_MESURE);
+    diff = dir - mes;
+
+
+    while (abs(diff) > 2)
+      {
+        if (diff > 0) {
+        // Serial.println("\tdirection:\tdroite");
+          digitalWrite(DIR_DROITE,HIGH);
+          digitalWrite(DIR_GAUCHE,LOW);
+        }
+        else {
+          // Serial.println("\tdirection:\tgauche");
+          digitalWrite(DIR_DROITE,LOW);
+          digitalWrite(DIR_GAUCHE,HIGH);
+        }
+        analogWrite(DIR_ALLUMER, DIR_PUISSANCE);
+        mes = analogRead(DIR_MESURE);
+        diff = dir - mes;
+      }
+    // arreter le moteur
+    analogWrite(DIR_ALLUMER,0);
+    // Serial.println("Stop !");
+    // Serial.println(analogRead(DIR_MESURE));
+}
 
 void tourner(int dir, int dur=1){
     if(dir > 0) {
-        if (analogRead(DIR_MESURE) >= max_direction) return;
         digitalWrite(DIR_GAUCHE,LOW);
         digitalWrite(DIR_DROITE,HIGH);
     } else {
-        if (analogRead(DIR_MESURE) <= min_direction) return;
         digitalWrite(DIR_DROITE,LOW);
         digitalWrite(DIR_GAUCHE,HIGH);
     }
     analogWrite(DIR_ALLUMER, DIR_PUISSANCE);
-    delay(DIR_DELAI*dur);
+    for (int i=0; i<dur; i++) {
+      if (analogRead(DIR_MESURE) >= max_direction) break;
+      if (analogRead(DIR_MESURE) <= min_direction) break;
+      delay (DIR_DELAI);
+    }  
     analogWrite(DIR_ALLUMER, 0);
 }
+
+
 
 
 /*   0   = stop
@@ -175,25 +174,25 @@ int distance(byte trig, byte echo) {
     return delay/58;
 }
 
-void milieu() {
-    int milieu=512;
-    int val = analogRead(DIR_MESURE);
-    while (abs(val-milieu) > 20) {
-        if (val < milieu) tourner(DROITE);
-        else tourner(GAUCHE,1);
-        val = analogRead(DIR_MESURE);
-        Serial.println(val);
-    }
-}
+// void milieu() {
+//     int milieu=512;
+//     int val = analogRead(DIR_MESURE);
+//     while (abs(val-milieu) > 20) {
+//         if (val < milieu) tourner(DROITE);
+//         else tourner(GAUCHE,1);
+//         val = analogRead(DIR_MESURE);
+//         // Serial.println(val);
+//     }
+// }
 
-void chicane() {
-    avancer(256);
-    delay(1000);
-    tourner(DROITE,10);
-    delay(1000);
-    tourner(GAUCHE,10);
-    avancer(0);
-}
+// void chicane() {
+//     avancer(256);
+//     delay(1000);
+//     tourner(DROITE,10);
+//     delay(1000);
+//     tourner(GAUCHE,10);
+//     avancer(0);
+// }
 
 void testCapteurs(){
     while (true) {
@@ -225,22 +224,53 @@ void setup() {
     pinMode(TRIG_ARRIERE,OUTPUT);
     pinMode(ECHO_ARRIERE,INPUT);
     //calibrer();
-    milieu();
+    //    milieu();
     run = 1;
 }
 
-void loop() { 
-    //Serial.print("avant: ");
-    //Serial.println(distance(TRIG_AVANT,ECHO_AVANT));
-    //Serial.print("gauche: ");
-    //Serial.println(distance(TRIG_GAUCHE,ECHO_GAUCHE));
-    //Serial.print("droite: ");
-    //Serial.println(distance(TRIG_DROITE,ECHO_DROITE));
-    //Serial.print("arriere: ");
-    //Serial.println(distance(TRIG_ARRIERE,ECHO_ARRIERE));
-    //rouler(255);
-    //delay(1000);
-    //chicane();
-    testCapteurs();
+#define DIST_AVANT (distance(TRIG_AVANT,ECHO_AVANT))
+#define DIST_ARRIERE (distance(TRIG_ARRIERE,ECHO_ARRIERE))
+#define DIST_GAUCHE (distance(TRIG_GAUCHE,ECHO_GAUCHE))
+#define DIST_DROITE (distance(TRIG_DROITE,ECHO_DROITE))
+
+#define cote 30
+
+#define milieu 512
+#define gauche 412
+#define droite 612
+
+
+void loop() {
+  delay(1000);
+  orienter (milieu);
+  delay(1000);
+  orienter (gauche);
+  delay(1000);
+  orienter (droite);
+  delay(1000);
+  avancer(200);
+  delay(1000);
+  avancer(0);
+
+  
+  // tourner (1,100);
+  // delay (1000);
+  // tourner (-1,100);
+  // delay (1000);
+
+  // // if (DIST_AVANT > 30) 
+  // //   { avancer (100); }
+  // // else
+  // //   { avancer (0); }
+
+  // int g = DIST_GAUCHE;
+  // int d = DIST_DROITE;
+
+  // if (g < cote || d < cote)
+  //   { tourner (d-g, 100); 
+  //     delay (200);
+  //     milieu ();
+  //   }
+  // delay (1000);
 }
 
