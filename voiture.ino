@@ -3,165 +3,105 @@
    Ajouter des diodes pour empecher ce genre de comportements malvenus.
    */
 
-#define DIR_ALLUMER 9     // allumage du moteur de direction
-#define DIR_GAUCHE 12     // HIGH tourne a gauche (noir)
-#define DIR_DROITE 13     // HIGH tourne a droite (orange)
-#define DIR_MESURE A5     // pin pour la mesure de l'angle des roues
-#define DIR_PUISSANCE 100 // [0-255] vitesse a laquelle la direction tourne
-#define DIR_DELAI 50      // delai entre deux mesure de l'angle des roues
-#define PROP_ARRIERE 10   // jaune
-#define PROP_AVANT 11     // blanc
+#define DIR_ALLUMER 9      // allumage du moteur de direction
+#define DIR_GAUCHE 12      // HIGH tourne a gauche (noir)
+#define DIR_DROITE 13      // HIGH tourne a droite (orange)
+#define DIR_MESURE A5      // pin pour la mesure de l'angle des roues
+#define DIR_PUISSANCE 255  // [0-255] vitesse a laquelle la direction tourne
+#define PROP_ARRIERE 10    // jaune
+#define PROP_AVANT 11      // blanc
+#define PROP_PUISSANCE 150 // vitesse à laquelle on va
 
-#define TRIG_AVANT 7
-#define ECHO_AVANT 6
-#define TRIG_GAUCHE 5
-#define ECHO_GAUCHE 4
-#define TRIG_ARRIERE 3
-#define ECHO_ARRIERE 2
-#define TRIG_DROITE 1
-#define ECHO_DROITE 0
+#define TRIG_AVANT 4
+#define ECHO_AVANT 5
+#define TRIG_GAUCHE 6
+#define ECHO_GAUCHE 7
+#define TRIG_ARRIERE A0
+#define ECHO_ARRIERE A1
+#define TRIG_DROITE A2
+#define ECHO_DROITE A3
 
-int min_direction = 400;
-int max_direction = 700;
-int dir; // position cible des roues
-int run; // compteur pour la loop
+#define MIN_DIRECTION 412
+#define MID_DIRECTION 512
+#define MAX_DIRECTION 612
 
-/* calibrer la direction :
- * faire tourner les roues à gauche jusqu'à ce que la mesure ne change plus
- * noter le résultat dans min_direction
- * faire pareil avec la droite.
- */
-void calibrer() {
-    Serial.println("debut de la calibration");
-    int courant,precedent;
-    // calibrer à droite
-    digitalWrite(DIR_DROITE,HIGH);
-    digitalWrite(DIR_GAUCHE,LOW);
-    analogWrite(DIR_ALLUMER,DIR_PUISSANCE);
-    precedent = analogRead(DIR_MESURE);
-    while (true) {
-        delay(DIR_DELAI);
-        courant = analogRead(DIR_MESURE);
-        if (courant-precedent > 0) {
-            precedent = courant;
-        }
-        else {
-            max_direction = courant;
-            break;
-        }
-    }
-    digitalWrite(DIR_ALLUMER,LOW);
-    Serial.println(String("max_direction:")+max_direction);
-    delay(1000);
-    // calibrer à gauche
-    digitalWrite(DIR_DROITE,LOW);
-    digitalWrite(DIR_GAUCHE,HIGH);
-    analogWrite(DIR_ALLUMER,DIR_PUISSANCE); // régler la vitesse ici
-    while (true) {
-        delay(DIR_DELAI);
-        courant = analogRead(DIR_MESURE);
-        if (courant-precedent < 0) {
-            precedent = courant;
-        } 
-        else {
-            min_direction = courant;
-            break;
-        }
-    }
-    analogWrite(DIR_ALLUMER,LOW);
-    Serial.println(String("min_direction:")+min_direction);
-    Serial.println("Calibration terminee");
-}
+bool roule = false;
 
 /* changer la direction des roues pour se rapprocher autant que possible de @dir@ 
  * on ralentit à mesure qu'on se rapproche de la cible.
  */
-void orienter(int dir) {
+void direction(int dir) {
     int mes,diff;
-    if (dir > max_direction) {
-        dir = max_direction;
+    // vérifier les bornes
+    if (dir > MAX_DIRECTION) {
+        dir = MAX_DIRECTION;
     }
-    if (dir < min_direction) {
-        dir = min_direction;
+    if (dir < MIN_DIRECTION) {
+        dir = MIN_DIRECTION;
     }
-
+    // initier le mouvement des roues
     mes = analogRead(DIR_MESURE);
     diff = dir - mes;
-
-
-    while (abs(diff) > 2)
-      {
+    while (abs(diff) > 2) {
         if (diff > 0) {
-        // Serial.println("\tdirection:\tdroite");
-          digitalWrite(DIR_DROITE,HIGH);
-          digitalWrite(DIR_GAUCHE,LOW);
-        }
-        else {
-          // Serial.println("\tdirection:\tgauche");
-          digitalWrite(DIR_DROITE,LOW);
-          digitalWrite(DIR_GAUCHE,HIGH);
+            // Serial.println("\tdirection:\tdroite");
+            digitalWrite(DIR_DROITE,HIGH);
+            digitalWrite(DIR_GAUCHE,LOW);
+        } else {
+            // Serial.println("\tdirection:\tgauche");
+            digitalWrite(DIR_DROITE,LOW);
+            digitalWrite(DIR_GAUCHE,HIGH);
         }
         analogWrite(DIR_ALLUMER, DIR_PUISSANCE);
         mes = analogRead(DIR_MESURE);
         diff = dir - mes;
-      }
+    }
     // arreter le moteur
     analogWrite(DIR_ALLUMER,0);
     // Serial.println("Stop !");
     // Serial.println(analogRead(DIR_MESURE));
 }
 
-void tourner(int dir, int dur=1){
-    if(dir > 0) {
-        digitalWrite(DIR_GAUCHE,LOW);
-        digitalWrite(DIR_DROITE,HIGH);
-    } else {
-        digitalWrite(DIR_DROITE,LOW);
-        digitalWrite(DIR_GAUCHE,HIGH);
-    }
-    analogWrite(DIR_ALLUMER, DIR_PUISSANCE);
-    for (int i=0; i<dur; i++) {
-      if (analogRead(DIR_MESURE) >= max_direction) break;
-      if (analogRead(DIR_MESURE) <= min_direction) break;
-      delay (DIR_DELAI);
-    }  
-    analogWrite(DIR_ALLUMER, 0);
-}
+#define GAUCHE (direction(MIN_DIRECTION))
+#define DROITE (direction(MAX_DIRECTION))
+#define CENTRE (direction(MID_DIRECTION))
 
-
-
-
-/*   0   = stop
-     255 = Full speed ahead !
-     -255 = Full speed backward !
-     */
-void avancer(int vitesse) {
-    // borner
+void propulsion(int vitesse) {
+    // vérifier les bornes
     if (vitesse > 255) vitesse = 255;
     if (vitesse < -255) vitesse = -255;
     // marche avant
     if (vitesse > 0) {
         digitalWrite(PROP_ARRIERE, LOW);
         analogWrite(PROP_AVANT, vitesse);
+        roule = true;
     } 
     // marche arrière
     else if (vitesse < 0) {
         digitalWrite(PROP_AVANT, LOW);
         analogWrite(PROP_ARRIERE, -vitesse);
+        roule = true;
     } 
     // arret
     else {
-        digitalWrite(PROP_AVANT, LOW);
-        digitalWrite(PROP_ARRIERE, LOW);
+        digitalWrite(PROP_AVANT, HIGH);
+        digitalWrite(PROP_ARRIERE, HIGH);
+        //delay(200);
+        //digitalWrite(PROP_AVANT, LOW);
+        //digitalWrite(PROP_ARRIERE, LOW);
+        roule = false;
     }
 }
+
+#define AVANT (propulsion(PROP_PUISSANCE))
+#define ARRIERE (propulsion(-PROP_PUISSANCE))
+#define ARRET (propulsion(0))
 
 int distance(byte trig, byte echo) {
     //Serial.print("trig:");
     //Serial.println(trig);
     //Serial.print("echo:");
     //Serial.println(echo);
-
     // émission de l'impulsion
     digitalWrite(trig,LOW);
     delayMicroseconds(2);
@@ -169,47 +109,80 @@ int distance(byte trig, byte echo) {
     delayMicroseconds(10);
     digitalWrite(trig,LOW);
     // captation du l'echo
-    unsigned int delay = pulseIn(echo, HIGH);
+    unsigned int delay = pulseIn(echo, HIGH, 3000);
     // conversion
-    return delay/58;
+    if (delay == 0) {
+        return 1000;
+    } else {
+        return delay/58;
+    }
 }
 
-// void milieu() {
-//     int milieu=512;
-//     int val = analogRead(DIR_MESURE);
-//     while (abs(val-milieu) > 20) {
-//         if (val < milieu) tourner(DROITE);
-//         else tourner(GAUCHE,1);
-//         val = analogRead(DIR_MESURE);
-//         // Serial.println(val);
-//     }
-// }
-
-// void chicane() {
-//     avancer(256);
-//     delay(1000);
-//     tourner(DROITE,10);
-//     delay(1000);
-//     tourner(GAUCHE,10);
-//     avancer(0);
-// }
+#define DIST_AVANT (distance(TRIG_AVANT,ECHO_AVANT))
+#define DIST_ARRIERE (distance(TRIG_ARRIERE,ECHO_ARRIERE))
+#define DIST_GAUCHE (distance(TRIG_GAUCHE,ECHO_GAUCHE))
+#define DIST_DROITE (distance(TRIG_DROITE,ECHO_DROITE))
 
 void testCapteurs(){
-    while (true) {
-        Serial.print("avant: ");
-        Serial.println(distance(TRIG_AVANT,ECHO_AVANT));
-        Serial.print("arriere: ");
-        Serial.println(distance(TRIG_ARRIERE,ECHO_ARRIERE));
-        Serial.print("gauche: ");
-        Serial.println(distance(TRIG_GAUCHE,ECHO_GAUCHE));
-        Serial.print("droite: ");
-        Serial.println(distance(TRIG_DROITE,ECHO_DROITE));
+    Serial.print("AVANT\t");
+    Serial.println(DIST_AVANT);
+    Serial.print("ARRIERE\t");
+    Serial.println(DIST_ARRIERE);
+    Serial.print("GAUCHE\t");
+    Serial.println(DIST_GAUCHE);
+    Serial.print("DROITE\t");
+    Serial.println(DIST_DROITE);
+}
+
+void avancer(int prox){
+    int d = DIST_AVANT;
+    Serial.print("avant ");
+    Serial.println(d);
+    if (roule && d < prox) {
+        ARRET;
+    }
+    if (!roule) {
         delay(1000);
     }
+    if (!roule && d > prox) {
+        propulsion(255);
+        delay(500);
+        AVANT;
+    }
+}
+
+void eviterLesMurs(int prox){
+    if (!roule) return;
+    int g = DIST_GAUCHE;
+    int d = DIST_DROITE;
+    Serial.print("gauche ");
+    Serial.println(g);
+    Serial.print("droite ");
+    Serial.println(d);
+    if (g < prox || d < prox) {
+        // la voiture est proche d'au moins un mur. S'éloigner du mur le plus
+        // proche. Si la voiture est dans un couloir, elle cherchera à se
+        // placer à égale distance des deux murs.
+        if (d > g) {
+            Serial.println("mur a gauche !");
+            DROITE;
+            delay(100);
+            CENTRE;
+        } else if (d < g) {
+            Serial.println("mur a droite !" );
+            GAUCHE;
+            delay(100);
+            CENTRE;
+        } else {
+            Serial.println("mur a la meme distance !");
+        }
+    }
+    Serial.println("murs super loins");
 }
 
 void setup() {
     Serial.begin(9600);
+    Serial.println("setup");
     pinMode(DIR_GAUCHE,OUTPUT);
     pinMode(DIR_DROITE,OUTPUT);
     pinMode(DIR_ALLUMER,OUTPUT);
@@ -223,54 +196,15 @@ void setup() {
     pinMode(ECHO_DROITE,INPUT);
     pinMode(TRIG_ARRIERE,OUTPUT);
     pinMode(ECHO_ARRIERE,INPUT);
-    //calibrer();
-    //    milieu();
-    run = 1;
+    CENTRE;
 }
 
-#define DIST_AVANT (distance(TRIG_AVANT,ECHO_AVANT))
-#define DIST_ARRIERE (distance(TRIG_ARRIERE,ECHO_ARRIERE))
-#define DIST_GAUCHE (distance(TRIG_GAUCHE,ECHO_GAUCHE))
-#define DIST_DROITE (distance(TRIG_DROITE,ECHO_DROITE))
-
-#define cote 30
-
-#define milieu 512
-#define gauche 412
-#define droite 612
-
+// la distance à partir de laquelle on fait quelque chose
+#define PROX_COTE 40
+#define PROX_AVANT 50
 
 void loop() {
-  delay(1000);
-  orienter (milieu);
-  delay(1000);
-  orienter (gauche);
-  delay(1000);
-  orienter (droite);
-  delay(1000);
-  avancer(200);
-  delay(1000);
-  avancer(0);
-
-  
-  // tourner (1,100);
-  // delay (1000);
-  // tourner (-1,100);
-  // delay (1000);
-
-  // // if (DIST_AVANT > 30) 
-  // //   { avancer (100); }
-  // // else
-  // //   { avancer (0); }
-
-  // int g = DIST_GAUCHE;
-  // int d = DIST_DROITE;
-
-  // if (g < cote || d < cote)
-  //   { tourner (d-g, 100); 
-  //     delay (200);
-  //     milieu ();
-  //   }
-  // delay (1000);
+    avancer(PROX_AVANT);
+    //delay(10);
+    eviterLesMurs(PROX_COTE);
 }
-
